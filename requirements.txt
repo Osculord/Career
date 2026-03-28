@@ -1,0 +1,8 @@
+ultralytics
+opencv-python
+mss
+numpy
+pydirectinput
+keyboard
+pywin32
+customtkinter
