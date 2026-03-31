@@ -8,15 +8,17 @@ ctk.set_appearance_mode("dark")
 class MidnightReborn(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("MIDNIGHT.MINER v15.9")
+        self.title("MIDNIGHT.MINER v16.3")
         self.geometry("850x700")
         self.resizable(False, False)
         self.attributes("-topmost", True)
         
+        # Базовый конфиг (добавили menu_key)
         self.cfg = {
             "master": True,
             "menu_alpha": 0.95,
             "main_color": "#a34cff",
+            "menu_key": "pagedown", # Клавиша по умолчанию
             "autopilot": {"enabled": False, "speed": 0.12, "dist_stop": 180},
             "ore":  {"conf": 0.45, "logic": True, "draw": True, "color": "#00FF7F", "thick": 2, "name": True, "alpha": 1.0},
             "bar":  {"conf": 0.40, "logic": True, "draw": True, "color": "#FFD700", "thick": 2, "name": True, "alpha": 1.0},
@@ -44,8 +46,26 @@ class MidnightReborn(ctk.CTk):
         self.container.grid(row=0, column=1, sticky="nsew", padx=15, pady=15)
         
         self.is_visible = True
-        keyboard.add_hotkey('insert', self.toggle_visibility, suppress=True)
+        
+        # Инициализация бинда при старте
+        self.current_hotkey = self.cfg.get("menu_key", "pagedown")
+        keyboard.add_hotkey(self.current_hotkey, self.toggle_visibility, suppress=True)
+        
         self.show_core()
+
+    # --- НОВЫЙ МЕТОД ДЛЯ СМЕНЫ БИНДА ---
+    def update_hotkey(self):
+        new_key = self.key_entry.get().lower().strip()
+        if new_key and new_key != self.current_hotkey:
+            try:
+                keyboard.remove_hotkey(self.current_hotkey)
+                keyboard.add_hotkey(new_key, self.toggle_visibility, suppress=True)
+                self.current_hotkey = new_key
+                self.cfg["menu_key"] = new_key
+                self.save_to_file()
+                print(f"Клавиша меню изменена на: {new_key}")
+            except:
+                print("Ошибка: Недопустимая клавиша")
 
     def create_nav_btn(self, text, command, row):
         btn = ctk.CTkButton(self.nav_frame, text=text, fg_color="transparent", text_color="gray", hover_color="#161616", anchor="w", font=("Arial", 12, "bold"), command=command)
@@ -92,7 +112,7 @@ class MidnightReborn(ctk.CTk):
                 d_sw.pack(pady=5, anchor="w"); self.esp_widgets[item]["draw"] = d_sw
                 ctk.CTkLabel(tab, text="Confidence (Порог):").pack(anchor="w", pady=(10,0))
                 c_lbl = ctk.CTkLabel(tab, text=f"{int(self.cfg[item]['conf']*100)}%", text_color=self.main_neon); c_lbl.pack(anchor="e")
-                c_sl = ctk.CTkSlider(tab, from_=0.05, to=0.95, command=lambda v, l=c_lbl: [l.configure(text=f"{int(v*100)}%"), self.save_to_file()])
+                c_sl = ctk.CTkSlider(tab, from_=0.05, to=0.95, command=lambda v, l=c_lbl, it=item: [l.configure(text=f"{int(v*100)}%"), self.save_to_file()])
                 c_sl.set(self.cfg[item]["conf"]); c_sl.pack(fill="x"); self.esp_widgets[item]["conf"] = c_sl
 
             ctk.CTkLabel(tab, text="Толщина линий:").pack(anchor="w", pady=(10,0))
@@ -120,12 +140,23 @@ class MidnightReborn(ctk.CTk):
     def show_settings(self):
         self.clear_container()
         ctk.CTkLabel(self.container, text="СИСТЕМА", font=("Arial", 22, "bold")).pack(anchor="w", pady=(0,20))
+        
+        # --- БЛОК СМЕНЫ КЛАВИШИ ---
+        f_key = ctk.CTkFrame(self.container, fg_color="#161616", corner_radius=8); f_key.pack(fill="x", pady=10)
+        ctk.CTkLabel(f_key, text="Клавиша меню:", font=("Arial", 13)).pack(side="left", padx=15)
+        self.key_entry = ctk.CTkEntry(f_key, width=100, placeholder_text="pagedown")
+        self.key_entry.insert(0, self.cfg.get("menu_key", "pagedown"))
+        self.key_entry.pack(side="left", padx=10, pady=10)
+        ctk.CTkButton(f_key, text="ОБНОВИТЬ", width=80, fg_color=self.main_neon, command=self.update_hotkey).pack(side="right", padx=10)
+
         ctk.CTkLabel(self.container, text="Прозрачность меню:").pack(anchor="w")
         self.m_alpha_sl = ctk.CTkSlider(self.container, from_=0.3, to=1.0, command=self.update_menu_alpha)
         self.m_alpha_sl.set(self.cfg["menu_alpha"]); self.m_alpha_sl.pack(fill="x", pady=10)
+        
         ctk.CTkButton(self.container, text="ЦВЕТ ИНТЕРФЕЙСА", fg_color=self.main_neon, command=self.pick_ui_color).pack(fill="x", pady=10)
-        faq_box = ctk.CTkTextbox(self.container, height=150); faq_box.pack(fill="both", expand=True)
-        faq_box.insert("0.0", "INSERT - Меню\nDEL - Вкл/Выкл бота\nAUTOPILOT - Идет к Rock на 'W'\nБот игнорирует камни пока не докопает Bar и Ore.")
+        
+        faq_box = ctk.CTkTextbox(self.container, height=120); faq_box.pack(fill="both", expand=True, pady=10)
+        faq_box.insert("0.0", f"Бинд меню: {self.current_hotkey.upper()}\nDEL - Вкл/Выкл бота\nAUTOPILOT - Идет к Rock на 'W'\nБот игнорирует камни пока не докопает Bar и Ore.")
         faq_box.configure(state="disabled")
 
     def update_menu_alpha(self, v): self.attributes("-alpha", v); self.cfg["menu_alpha"] = v; self.save_to_file()
@@ -135,8 +166,9 @@ class MidnightReborn(ctk.CTk):
     def pick_color(self, name):
         color = colorchooser.askcolor(initialcolor=self.cfg[name]["color"])[1]
         if color: self.cfg[name]["color"] = color; self.save_to_file(); self.show_visuals(name)
+    
     def save_to_file(self):
-        self.cfg["master"] = bool(self.master_sw.get())
+        self.cfg["master"] = bool(self.master_sw.get()) if hasattr(self, 'master_sw') else self.cfg["master"]
         if hasattr(self, 'logic_switches'):
             for n in ["ore", "bar", "rock"]: self.cfg[n]["logic"] = bool(self.logic_switches[n].get())
         if hasattr(self, 'auto_sw'):
@@ -150,6 +182,7 @@ class MidnightReborn(ctk.CTk):
                 if "conf" in w: self.cfg[n]["conf"] = round(w["conf"].get(), 2)
                 self.cfg[n]["thick"] = int(w["thick"].get()); self.cfg[n]["alpha"] = round(w["alpha"].get(), 2)
         with open(CONFIG_FILE, "w") as f: json.dump(self.cfg, f, indent=4)
+        
     def load_from_file(self):
         if os.path.exists(CONFIG_FILE):
             try:

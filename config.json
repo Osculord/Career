@@ -1,36 +1,37 @@
 {
-    "master": true,
+    "master": false,
     "menu_alpha": 0.95,
-    "main_color": "#a34cff",
+    "main_color": "#6be765",
+    "menu_key": "insert",
     "autopilot": {
         "enabled": false,
-        "speed": 0.12,
-        "dist_stop": 365
+        "speed": 0.17,
+        "dist_stop": 316
     },
     "ore": {
-        "conf": 0.28,
+        "conf": 0.2,
         "logic": true,
-        "draw": true,
+        "draw": false,
         "color": "#00FF7F",
-        "thick": 2,
+        "thick": 1,
         "name": true,
         "alpha": 1.0
     },
     "bar": {
-        "conf": 0.49,
+        "conf": 0.41,
         "logic": true,
         "draw": false,
         "color": "#FFD700",
-        "thick": 2,
+        "thick": 1,
         "name": true,
-        "alpha": 1.0
+        "alpha": 0.61
     },
     "rock": {
-        "conf": 0.35,
+        "conf": 0.5,
         "logic": true,
         "draw": false,
         "color": "#7c8659",
-        "thick": 2,
+        "thick": 1,
         "name": true,
         "alpha": 1.0
     },

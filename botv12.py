@@ -20,9 +20,9 @@ last_e_press = 0
 
 # ПАМЯТЬ
 object_memory = {
-    "rock": {"pos": None, "time": 0, "limit": 2.5},
-    "ore":  {"pos": None, "time": 0, "limit": 1.5},
-    "bar":  {"pos": None, "time": 0, "limit": 1.5}
+    "rock": {"pos": None, "time": 0, "limit": 0.5},
+    "ore":  {"pos": None, "time": 0, "limit": 1.0},
+    "bar":  {"pos": None, "time": 0, "limit": 1.0}
 }
 
 def load_cfg_safe():
@@ -46,7 +46,7 @@ def fast_click():
 def run_engine():
     global bot_state, last_bar_seen, last_ore_seen, last_e_press
     try: 
-        model = YOLO("last.pt") 
+        model = YOLO("best.pt") 
     except: 
         print("Веса не найдены!"); return
 
@@ -125,18 +125,33 @@ def run_engine():
                             canvas.create_rectangle(x1, y1, x2, y2, outline=cfg[name]["color"], width=cfg[name]["thick"])
                             canvas.create_text(x1, y1-15, text=f"{name.upper()} {int(prob*100)}%", fill=cfg[name]["color"], font=("Arial", 10, "bold"))
 
-                        # ЛОГИКА ROCK (Нажатие E при приближении)
+                        # ЛОГИКА ROCK (Нажатие E через проверку площади Area)
                         if name == 'rock' and cfg[name]["logic"]:
-                            if h_box >= cfg["autopilot"]["dist_stop"] and bot_state == STATE_SEARCH:
-                                if now - last_e_press > 2.5:
-                                    pydirectinput.press('e')
-                                    last_e_press = now
-                                    bot_state = STATE_MINING
+                            # Вычисляем площадь текущего бокса
+                            area = (x2 - x1) * (y2 - y1)
+                            
+                            # Порог площади (настрой под себя, на 2560x1440 около 50000-100000 это "в упор")
+                            # Можно также оставить привязку к dist_stop, превратив её в площадь
+                            min_area_to_mine = cfg["autopilot"]["dist_stop"] * (cfg["autopilot"]["dist_stop"] * 1.5)
 
-                            if bot_state == STATE_SEARCH and y2 > max_y: 
-                                max_y = y2
-                                current_frame_rock = (bx, by, h_box)
+                            if bot_state == STATE_SEARCH:
+                                # Если мы подошли очень близко (по площади или по высоте)
+                                if area >= min_area_to_mine or h_box >= cfg["autopilot"]["dist_stop"]:
+                                    if now - last_e_press > 2.5:
+                                        pydirectinput.press('e')
+                                        last_e_press = now
+                                        bot_state = STATE_MINING
+                                        # На всякий случай сбрасываем бег, если он залип
+                                        if w_is_down:
+                                            pydirectinput.keyUp('shift')
+                                            pydirectinput.keyUp('w')
+                                            w_is_down = False
 
+                                # Выбор ближайшего камня для автопилота (по нижней точке y2)
+                                if y2 > max_y: 
+                                    max_y = y2
+                                    current_frame_rock = (bx, by, h_box)
+                                    
                         # ЛОГИКА BAR / ORE
                         if cfg[name]["logic"]:
                             if name == 'bar':
@@ -146,26 +161,38 @@ def run_engine():
                                 last_ore_seen = now; bot_state = STATE_MINING
                                 win32api.SetCursorPos((bx, by)); fast_click()
 
-                    # --- АВТОПИЛОТ (ТОЛЬКО ДВИЖЕНИЕ) ---
+                    # --- АВТОПИЛОТ (БЕГ: W + SHIFT) ---
                     if cfg["autopilot"]["enabled"]:
                         target = None
-                        if current_frame_rock: target = current_frame_rock
-                        elif now - object_memory["rock"]["time"] < 2.0: target = object_memory["rock"]["pos"]
+                        if current_frame_rock: 
+                            target = current_frame_rock
+                        elif now - object_memory["rock"]["time"] < 2.0: 
+                            target = object_memory["rock"]["pos"]
 
                         if target and bot_state == STATE_SEARCH:
                             tx, ty, th = target
+                            
+                            # Поворот камеры к цели
                             smooth_move(tx, cfg["autopilot"]["speed"])
                             
+                            # Проверка дистанции (th < dist_stop значит мы еще далеко)
                             if th < cfg["autopilot"]["dist_stop"]:
                                 if not w_is_down:
-                                    pydirectinput.keyDown('w'); w_is_down = True
+                                    pydirectinput.keyDown('w')
+                                    pydirectinput.keyDown('shift') # Зажимаем бег
+                                    w_is_down = True
                             else:
+                                # Подошли вплотную — останавливаемся
                                 if w_is_down:
-                                    pydirectinput.keyUp('w'); w_is_down = False
+                                    pydirectinput.keyUp('shift') # Отпускаем бег
+                                    pydirectinput.keyUp('w')
+                                    w_is_down = False
                         else:
+                            # Если цель потеряна — прекращаем бег
                             if w_is_down:
-                                pydirectinput.keyUp('w'); w_is_down = False
-                    
+                                pydirectinput.keyUp('shift')
+                                pydirectinput.keyUp('w')
+                                w_is_down = False
                 except: pass
 
             root.update()
